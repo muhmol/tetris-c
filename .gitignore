@@ -1,0 +1,12 @@
+# Build output
+/build/
+
+# Compiled objects and binaries
+*.o
+*.obj
+*.exe
+*.out
+
+# IDE-specific
+.vscode/*
+!.vscode/settings.json
