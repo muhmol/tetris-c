@@ -111,7 +111,29 @@ int main(void) {
     while (!gameOver) {
         if (_kbhit()) {
             int ch = _getch();
-            if (ch == 'q') gameOver = 1;
+            if (ch == 0 || ch == 224) ch = _getch(); // arrow key prefix byte
+            switch (ch) {
+                case 'a': case 75: // left
+                    if (fits(cur, cur.rot, -1, 0)) cur.x--;
+                    break;
+                case 'd': case 77: // right
+                    if (fits(cur, cur.rot, 1, 0)) cur.x++;
+                    break;
+                case 's': case 80: // soft drop
+                    if (fits(cur, cur.rot, 0, 1)) cur.y++;
+                    break;
+                case 'w': case 72: { // rotate
+                    int newRot = (cur.rot + 1) % 4;
+                    if (fits(cur, newRot, 0, 0)) cur.rot = newRot;
+                    break;
+                }
+                case ' ': // hard drop
+                    while (fits(cur, cur.rot, 0, 1)) cur.y++;
+                    break;
+                case 'q':
+                    gameOver = 1;
+                    break;
+            }
         }
 
         clock_t now = clock();
@@ -132,5 +154,6 @@ int main(void) {
 
     draw(hOut);
     printf("\nPress Q to quit (already done).\n");
+    printf("\nGame over.\n");
     return 0;
 }
