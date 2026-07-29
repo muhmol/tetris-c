@@ -34,6 +34,11 @@ int getCell(int type, int rot, int row, int col) {
     return baseShapes[type][r][c];
 }
 
+void setColor(HANDLE h, int type) {
+    int colors[] = {11, 14, 13, 10, 12, 9, 6}; // I O T S Z J L
+    SetConsoleTextAttribute(h, colors[type]);
+}
+
 // Checks whether piece p, at rotation `rot`, offset by (dx,dy), is a legal position.
 int fits(Piece p, int rot, int dx, int dy) {
     for (int row = 0; row < 4; row++) {
@@ -113,25 +118,43 @@ void draw(HANDLE hOut) {
     for (int r = HIDDEN_ROWS; r < BOARD_H; r++) {
         printf("|");
         for (int c = 0; c < BOARD_W; c++) {
-            printf(temp[r][c] ? "[]" : "  ");
+            if (temp[r][c]) {
+                setColor(hOut, temp[r][c] - 1);
+                printf("[]");
+                SetConsoleTextAttribute(hOut, 7); // reset to default gray
+            } else {
+                printf("  ");
+            }
         }
         printf("|\n");
     }
+
     printf("+");
     for (int c = 0; c < BOARD_W; c++) printf("--");
     printf("+\n");
     if (gameOver) printf("\n*** GAME OVER ***\n");
 }
 
+void hideCursor(HANDLE h) {
+    CONSOLE_CURSOR_INFO info;
+    info.dwSize = 100;
+    info.bVisible = FALSE;
+    SetConsoleCursorInfo(h, &info);
+}
+
 int main(void) {
     HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
+    hideCursor(hOut);
     system("cls");
     srand((unsigned)time(NULL));
 
     spawnPiece(&cur);
     clock_t lastFall = clock();
-    int fallDelayMs = 500;
+    int fallDelayMs;
 
+    fallDelayMs = 500 - (level - 1) * 40;
+        if (fallDelayMs < 100) fallDelayMs = 100;
+    
     while (!gameOver) {
         if (_kbhit()) {
             int ch = _getch();
@@ -179,7 +202,6 @@ int main(void) {
     }
 
     draw(hOut);
-    printf("\nPress Q to quit (already done).\n");
-    printf("\nGame over.\n");
+    printf("\nFinal score: %d\n", score);
     return 0;
 }
