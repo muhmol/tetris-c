@@ -23,6 +23,7 @@ int baseShapes[7][4][4] = {
 typedef struct { int type, rot, x, y; } Piece;
 Piece cur;
 int gameOver = 0;
+int score = 0, level = 1, linesCleared = 0;
 
 int getCell(int type, int rot, int row, int col) {
     int r = row, c = col;
@@ -63,6 +64,29 @@ void lockPiece(Piece p) {
                 if (by < 0) { gameOver = 1; continue; }
                 board[by][bx] = p.type + 1;
             }
+}
+
+void clearLines(void) {
+    int cleared = 0;
+    for (int row = BOARD_H - 1; row >= 0; row--) {
+        int full = 1;
+        for (int col = 0; col < BOARD_W; col++)
+            if (!board[row][col]) { full = 0; break; }
+        if (full) {
+            cleared++;
+            for (int r = row; r > 0; r--)
+                for (int col = 0; col < BOARD_W; col++)
+                    board[r][col] = board[r-1][col];
+            for (int col = 0; col < BOARD_W; col++) board[0][col] = 0;
+            row++; // recheck this row index since everything shifted down
+        }
+    }
+    if (cleared) {
+        int points[] = {0, 100, 300, 500, 800};
+        score += points[cleared] * level;
+        linesCleared += cleared;
+        level = 1 + linesCleared / 10;
+    }
 }
 
 void draw(HANDLE hOut) {
@@ -120,7 +144,7 @@ int main(void) {
                     if (fits(cur, cur.rot, 1, 0)) cur.x++;
                     break;
                 case 's': case 80: // soft drop
-                    if (fits(cur, cur.rot, 0, 1)) cur.y++;
+                    if (fits(cur, cur.rot, 0, 1)) { cur.y++; score += 1; }
                     break;
                 case 'w': case 72: { // rotate
                     int newRot = (cur.rot + 1) % 4;
@@ -128,7 +152,7 @@ int main(void) {
                     break;
                 }
                 case ' ': // hard drop
-                    while (fits(cur, cur.rot, 0, 1)) cur.y++;
+                    while (fits(cur, cur.rot, 0, 1)) { cur.y++; score += 2; }
                     break;
                 case 'q':
                     gameOver = 1;
@@ -142,12 +166,14 @@ int main(void) {
                 cur.y++;
             } else {
                 lockPiece(cur);
+                clearLines();
                 spawnPiece(&cur);
                 if (!fits(cur, cur.rot, 0, 0)) gameOver = 1;
             }
             lastFall = now;
         }
 
+        printf("Score: %d   Level: %d   Lines: %d\n\n", score, level, linesCleared);
         draw(hOut);
         Sleep(16);
     }
