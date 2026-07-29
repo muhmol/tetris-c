@@ -3,6 +3,7 @@
 #include <time.h>
 #include <conio.h>
 #include <windows.h>
+#include <ctype.h>
 
 #define BOARD_W 10
 #define BOARD_H 22
@@ -58,6 +59,19 @@ void spawnPiece(Piece *p) {
     p->rot = 0;
     p->x = 3;
     p->y = 0;
+}
+
+void resetGame(void) {
+    for (int r = 0; r < BOARD_H; r++)
+        for (int c = 0; c < BOARD_W; c++)
+            board[r][c] = 0;
+
+    score = 0;
+    level = 1;
+    linesCleared = 0;
+    gameOver = 0;
+
+    spawnPiece(&cur);
 }
 
 // Writes the piece's cells permanently into the board.
@@ -145,63 +159,79 @@ void hideCursor(HANDLE h) {
 int main(void) {
     HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
     hideCursor(hOut);
-    system("cls");
     srand((unsigned)time(NULL));
 
-    spawnPiece(&cur);
-    clock_t lastFall = clock();
-    int fallDelayMs;
+    int playAgain = 1;
 
-    fallDelayMs = 500 - (level - 1) * 40;
-        if (fallDelayMs < 100) fallDelayMs = 100;
-    
-    while (!gameOver) {
-        if (_kbhit()) {
-            int ch = _getch();
-            if (ch == 0 || ch == 224) ch = _getch(); // arrow key prefix byte
-            switch (ch) {
-                case 'a': case 75: // left
-                    if (fits(cur, cur.rot, -1, 0)) cur.x--;
-                    break;
-                case 'd': case 77: // right
-                    if (fits(cur, cur.rot, 1, 0)) cur.x++;
-                    break;
-                case 's': case 80: // soft drop
-                    if (fits(cur, cur.rot, 0, 1)) { cur.y++; score += 1; }
-                    break;
-                case 'w': case 72: { // rotate
-                    int newRot = (cur.rot + 1) % 4;
-                    if (fits(cur, newRot, 0, 0)) cur.rot = newRot;
-                    break;
+    while (playAgain) {
+        system("cls");
+        resetGame();
+
+        clock_t lastFall = clock();
+        int fallDelayMs;
+
+        while (!gameOver) {
+            fallDelayMs = 500 - (level - 1) * 40;
+            if (fallDelayMs < 100) fallDelayMs = 100;
+
+            if (_kbhit()) {
+                int ch = _getch();
+                if (ch == 0 || ch == 224) ch = _getch();
+                switch (ch) {
+                    case 'a': case 75:
+                        if (fits(cur, cur.rot, -1, 0)) cur.x--;
+                        break;
+                    case 'd': case 77:
+                        if (fits(cur, cur.rot, 1, 0)) cur.x++;
+                        break;
+                    case 's': case 80:
+                        if (fits(cur, cur.rot, 0, 1)) { cur.y++; score += 1; }
+                        break;
+                    case 'w': case 72: {
+                        int newRot = (cur.rot + 1) % 4;
+                        if (fits(cur, newRot, 0, 0)) cur.rot = newRot;
+                        break;
+                    }
+                    case ' ':
+                        while (fits(cur, cur.rot, 0, 1)) { cur.y++; score += 2; }
+                        break;
+                    case 'q':
+                        gameOver = 1;
+                        break;
                 }
-                case ' ': // hard drop
-                    while (fits(cur, cur.rot, 0, 1)) { cur.y++; score += 2; }
-                    break;
-                case 'q':
-                    gameOver = 1;
-                    break;
             }
+
+            clock_t now = clock();
+            if ((now - lastFall) * 1000 / CLOCKS_PER_SEC >= fallDelayMs) {
+                if (fits(cur, cur.rot, 0, 1)) {
+                    cur.y++;
+                } else {
+                    lockPiece(cur);
+                    clearLines();
+                    spawnPiece(&cur);
+                    if (!fits(cur, cur.rot, 0, 0)) gameOver = 1;
+                }
+                lastFall = now;
+            }
+
+            draw(hOut);
+            Sleep(16);
         }
 
-        clock_t now = clock();
-        if ((now - lastFall) * 1000 / CLOCKS_PER_SEC >= fallDelayMs) {
-            if (fits(cur, cur.rot, 0, 1)) {
-                cur.y++;
-            } else {
-                lockPiece(cur);
-                clearLines();
-                spawnPiece(&cur);
-                if (!fits(cur, cur.rot, 0, 0)) gameOver = 1;
-            }
-            lastFall = now;
-        }
-
-        printf("Score: %d   Level: %d   Lines: %d\n\n", score, level, linesCleared);
         draw(hOut);
-        Sleep(16);
+        printf("\nFinal score: %d\n", score);
+        printf("Play again? (Y/N): ");
+
+        int ch;
+        do {
+            ch = _getch();
+            ch = tolower(ch);
+        } while (ch != 'y' && ch != 'n');
+
+        printf("%c\n", ch);
+        playAgain = (ch == 'y');
     }
 
-    draw(hOut);
-    printf("\nFinal score: %d\n", score);
+    printf("\nThanks for playing!\n");
     return 0;
 }
