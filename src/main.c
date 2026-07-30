@@ -61,6 +61,31 @@ void spawnPiece(Piece *p) {
     p->y = 0;
 }
 
+void showStartScreen(HANDLE hOut) {
+    system("cls");
+    setColor(hOut, 0); // cyan
+    printf("\n\n");
+    printf("   #####  ##### ##### ##### ###  #####\n");
+    printf("     #    #     #       #   #  #\n");
+    printf("     #    ###   ###     #   #   ###\n");
+    printf("     #    #     #       #   #      #\n");
+    printf("     #    ##### #####   #   ### #####\n");
+    SetConsoleTextAttribute(hOut, 7); // reset to default gray
+
+    printf("\n\n");
+    printf("            A terminal Tetris clone\n");
+    printf("                  v%s\n\n", APP_VERSION);
+    printf("   Controls:\n");
+    printf("     A / D    Move left / right\n");
+    printf("     S        Soft drop\n");
+    printf("     W        Rotate\n");
+    printf("     Space    Hard drop\n");
+    printf("     Q        Quit round\n\n");
+    printf("   Press any key to start...\n");
+
+    _getch();
+}
+
 void resetGame(void) {
     for (int r = 0; r < BOARD_H; r++)
         for (int c = 0; c < BOARD_W; c++)
@@ -160,6 +185,8 @@ int main(void) {
     HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
     hideCursor(hOut);
     srand((unsigned)time(NULL));
+
+    showStartScreen(hOut);
 
     int playAgain = 1;
 
