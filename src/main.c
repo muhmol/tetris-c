@@ -1,9 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
 #include <time.h>
 #include <conio.h>
 #include <windows.h>
-#include <ctype.h>
 
 #define BOARD_W 10
 #define BOARD_H 22
@@ -23,8 +24,9 @@ int baseShapes[7][4][4] = {
 
 typedef struct { int type, rot, x, y; } Piece;
 Piece cur;
-int gameOver = 0;
+
 int score = 0, level = 1, linesCleared = 0;
+int gameOver = 0;
 
 int getCell(int type, int rot, int row, int col) {
     int r = row, c = col;
@@ -35,12 +37,6 @@ int getCell(int type, int rot, int row, int col) {
     return baseShapes[type][r][c];
 }
 
-void setColor(HANDLE h, int type) {
-    int colors[] = {11, 14, 13, 10, 12, 9, 6}; // I O T S Z J L
-    SetConsoleTextAttribute(h, colors[type]);
-}
-
-// Checks whether piece p, at rotation `rot`, offset by (dx,dy), is a legal position.
 int fits(Piece p, int rot, int dx, int dy) {
     for (int row = 0; row < 4; row++) {
         for (int col = 0; col < 4; col++) {
@@ -61,45 +57,6 @@ void spawnPiece(Piece *p) {
     p->y = 0;
 }
 
-void showStartScreen(HANDLE hOut) {
-    system("cls");
-    setColor(hOut, 0); // cyan
-    printf("\n\n");
-    printf("   #####  ##### ##### ##### ###  #####\n");
-    printf("     #    #     #       #   #  #\n");
-    printf("     #    ###   ###     #   #   ###\n");
-    printf("     #    #     #       #   #      #\n");
-    printf("     #    ##### #####   #   ### #####\n");
-    SetConsoleTextAttribute(hOut, 7); // reset to default gray
-
-    printf("\n\n");
-    printf("            A terminal Tetris clone\n");
-    printf("                  v%s\n\n", APP_VERSION);
-    printf("   Controls:\n");
-    printf("     A / D    Move left / right\n");
-    printf("     S        Soft drop\n");
-    printf("     W        Rotate\n");
-    printf("     Space    Hard drop\n");
-    printf("     Q        Quit round\n\n");
-    printf("   Press any key to start...\n");
-
-    _getch();
-}
-
-void resetGame(void) {
-    for (int r = 0; r < BOARD_H; r++)
-        for (int c = 0; c < BOARD_W; c++)
-            board[r][c] = 0;
-
-    score = 0;
-    level = 1;
-    linesCleared = 0;
-    gameOver = 0;
-
-    spawnPiece(&cur);
-}
-
-// Writes the piece's cells permanently into the board.
 void lockPiece(Piece p) {
     for (int row = 0; row < 4; row++)
         for (int col = 0; col < 4; col++)
@@ -122,7 +79,7 @@ void clearLines(void) {
                 for (int col = 0; col < BOARD_W; col++)
                     board[r][col] = board[r-1][col];
             for (int col = 0; col < BOARD_W; col++) board[0][col] = 0;
-            row++; // recheck this row index since everything shifted down
+            row++;
         }
     }
     if (cleared) {
@@ -133,9 +90,90 @@ void clearLines(void) {
     }
 }
 
+void setColor(HANDLE h, int type) {
+    int colors[] = {11, 14, 13, 10, 12, 9, 6}; // I O T S Z J L
+    SetConsoleTextAttribute(h, colors[type]);
+}
+
+void hideCursor(HANDLE h) {
+    CONSOLE_CURSOR_INFO info;
+    info.dwSize = 100;
+    info.bVisible = FALSE;
+    SetConsoleCursorInfo(h, &info);
+}
+
+// Reads the actual current console window width so layout can adapt to resizing.
+int getConsoleWidth(HANDLE hOut) {
+    CONSOLE_SCREEN_BUFFER_INFO csbi;
+    if (GetConsoleScreenBufferInfo(hOut, &csbi)) {
+        return csbi.srWindow.Right - csbi.srWindow.Left + 1;
+    }
+    return 80; // fallback if the call fails
+}
+
+// Prints one line of text padded on the left so it appears horizontally centered.
+void printCentered(int consoleWidth, const char *text) {
+    int len = (int)strlen(text);
+    int pad = (consoleWidth - len) / 2;
+    if (pad < 0) pad = 0;
+    for (int i = 0; i < pad; i++) putchar(' ');
+    printf("%s", text);
+}
+
+void showStartScreen(HANDLE hOut) {
+    system("cls");
+    int w = getConsoleWidth(hOut);
+
+    printf("\n\n");
+    setColor(hOut, 0); // cyan
+    printCentered(w, "#####  ##### ##### ##### ###  #####\n");
+    printCentered(w, "  #    #     #       #   #  #\n");
+    printCentered(w, "  #    ###   ###     #   #   ###\n");
+    printCentered(w, "  #    #     #       #   #      #\n");
+    printCentered(w, "  #    ##### #####   #   ### #####\n");
+    SetConsoleTextAttribute(hOut, 7);
+
+    printf("\n\n");
+    char versionLine[32];
+    snprintf(versionLine, sizeof(versionLine), "v%s\n", APP_VERSION);
+    printCentered(w, "A terminal Tetris clone\n");
+    printCentered(w, versionLine);
+    printf("\n");
+    printCentered(w, "Controls:\n");
+    printCentered(w, "A / D    Move left / right\n");
+    printCentered(w, "S        Soft drop\n");
+    printCentered(w, "W        Rotate\n");
+    printCentered(w, "Space    Hard drop\n");
+    printCentered(w, "Q        Quit round\n");
+    printf("\n");
+    printCentered(w, "Press any key to start...\n");
+
+    _getch();
+}
+
+void resetGame(void) {
+    for (int r = 0; r < BOARD_H; r++)
+        for (int c = 0; c < BOARD_W; c++)
+            board[r][c] = 0;
+
+    score = 0;
+    level = 1;
+    linesCleared = 0;
+    gameOver = 0;
+
+    spawnPiece(&cur);
+}
+
 void draw(HANDLE hOut) {
     COORD topLeft = {0, 0};
     SetConsoleCursorPosition(hOut, topLeft);
+
+    int w = getConsoleWidth(hOut);
+    int boardTextWidth = (BOARD_W * 2) + 2; // "+" + cells + "+"
+    int pad = (w - boardTextWidth) / 2;
+    if (pad < 0) pad = 0;
+    char padStr[128] = {0};
+    for (int i = 0; i < pad && i < 127; i++) padStr[i] = ' ';
 
     int temp[BOARD_H][BOARD_W];
     for (int r = 0; r < BOARD_H; r++)
@@ -147,38 +185,34 @@ void draw(HANDLE hOut) {
             if (getCell(cur.type, cur.rot, row, col)) {
                 int by = cur.y + row, bx = cur.x + col;
                 if (by >= 0 && by < BOARD_H && bx >= 0 && bx < BOARD_W)
-                    temp[by][bx] = 1;
+                    temp[by][bx] = cur.type + 1;
             }
 
-    printf("+");
+    printf("%sScore: %d   Level: %d   Lines: %d\n\n", padStr, score, level, linesCleared);
+
+    printf("%s+", padStr);
     for (int c = 0; c < BOARD_W; c++) printf("--");
     printf("+\n");
 
     for (int r = HIDDEN_ROWS; r < BOARD_H; r++) {
-        printf("|");
+        printf("%s|", padStr);
         for (int c = 0; c < BOARD_W; c++) {
             if (temp[r][c]) {
                 setColor(hOut, temp[r][c] - 1);
                 printf("[]");
-                SetConsoleTextAttribute(hOut, 7); // reset to default gray
+                SetConsoleTextAttribute(hOut, 7);
             } else {
                 printf("  ");
             }
         }
         printf("|\n");
     }
-
-    printf("+");
+    printf("%s+", padStr);
     for (int c = 0; c < BOARD_W; c++) printf("--");
     printf("+\n");
-    if (gameOver) printf("\n*** GAME OVER ***\n");
-}
-
-void hideCursor(HANDLE h) {
-    CONSOLE_CURSOR_INFO info;
-    info.dwSize = 100;
-    info.bVisible = FALSE;
-    SetConsoleCursorInfo(h, &info);
+    printf("%s\n", padStr);
+    printf("%sControls: A/D move, S soft drop, W rotate, SPACE hard drop, Q quit\n", padStr);
+    if (gameOver) printf("\n%s*** GAME OVER ***\n", padStr);
 }
 
 int main(void) {
