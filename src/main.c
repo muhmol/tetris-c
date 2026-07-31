@@ -27,6 +27,7 @@ Piece cur;
 
 int score = 0, level = 1, linesCleared = 0;
 int gameOver = 0;
+int paused = 0;
 
 int getCell(int type, int rot, int row, int col) {
     int r = row, c = col;
@@ -102,16 +103,14 @@ void hideCursor(HANDLE h) {
     SetConsoleCursorInfo(h, &info);
 }
 
-// Reads the actual current console window width so layout can adapt to resizing.
 int getConsoleWidth(HANDLE hOut) {
     CONSOLE_SCREEN_BUFFER_INFO csbi;
     if (GetConsoleScreenBufferInfo(hOut, &csbi)) {
         return csbi.srWindow.Right - csbi.srWindow.Left + 1;
     }
-    return 80; // fallback if the call fails
+    return 80;
 }
 
-// Prints one line of text padded on the left so it appears horizontally centered.
 void printCentered(int consoleWidth, const char *text) {
     int len = (int)strlen(text);
     int pad = (consoleWidth - len) / 2;
@@ -125,7 +124,7 @@ void showStartScreen(HANDLE hOut) {
     int w = getConsoleWidth(hOut);
 
     printf("\n\n");
-    setColor(hOut, 0); // cyan
+    setColor(hOut, 0);
     printCentered(w, "#####  ##### ##### ##### ###  #####\n");
     printCentered(w, "  #    #     #       #   #  #\n");
     printCentered(w, "  #    ###   ###     #   #   ###\n");
@@ -144,6 +143,7 @@ void showStartScreen(HANDLE hOut) {
     printCentered(w, "S        Soft drop\n");
     printCentered(w, "W        Rotate\n");
     printCentered(w, "Space    Hard drop\n");
+    printCentered(w, "P        Pause\n");
     printCentered(w, "Q        Quit round\n");
     printf("\n");
     printCentered(w, "Press any key to start...\n");
@@ -160,6 +160,7 @@ void resetGame(void) {
     level = 1;
     linesCleared = 0;
     gameOver = 0;
+    paused = 0;
 
     spawnPiece(&cur);
 }
@@ -169,7 +170,7 @@ void draw(HANDLE hOut) {
     SetConsoleCursorPosition(hOut, topLeft);
 
     int w = getConsoleWidth(hOut);
-    int boardTextWidth = (BOARD_W * 2) + 2; // "+" + cells + "+"
+    int boardTextWidth = (BOARD_W * 2) + 2;
     int pad = (w - boardTextWidth) / 2;
     if (pad < 0) pad = 0;
     char padStr[128] = {0};
@@ -211,8 +212,17 @@ void draw(HANDLE hOut) {
     for (int c = 0; c < BOARD_W; c++) printf("--");
     printf("+\n");
     printf("%s\n", padStr);
-    printf("%sControls: A/D move, S soft drop, W rotate, SPACE hard drop, Q quit\n", padStr);
-    if (gameOver) printf("\n%s*** GAME OVER ***\n", padStr);
+
+    if (paused) {
+        printCentered(w, "*** PAUSED — press P to resume ***\n");
+    } else {
+        printCentered(w, "Controls: A/D move, S soft drop, W rotate, SPACE hard drop, P pause, Q quit\n");
+    }
+
+    if (gameOver) {
+        printf("\n");
+        printCentered(w, "*** GAME OVER ***\n");
+    }
 }
 
 int main(void) {
@@ -229,6 +239,7 @@ int main(void) {
         resetGame();
 
         clock_t lastFall = clock();
+        clock_t pauseStart = 0;
         int fallDelayMs;
 
         while (!gameOver) {
@@ -238,41 +249,56 @@ int main(void) {
             if (_kbhit()) {
                 int ch = _getch();
                 if (ch == 0 || ch == 224) ch = _getch();
-                switch (ch) {
-                    case 'a': case 75:
-                        if (fits(cur, cur.rot, -1, 0)) cur.x--;
-                        break;
-                    case 'd': case 77:
-                        if (fits(cur, cur.rot, 1, 0)) cur.x++;
-                        break;
-                    case 's': case 80:
-                        if (fits(cur, cur.rot, 0, 1)) { cur.y++; score += 1; }
-                        break;
-                    case 'w': case 72: {
-                        int newRot = (cur.rot + 1) % 4;
-                        if (fits(cur, newRot, 0, 0)) cur.rot = newRot;
-                        break;
+
+                if (ch == 'p') {
+                    paused = !paused;
+                    if (paused) {
+                        pauseStart = clock();
+                    } else {
+                        // shift lastFall forward by however long we were paused,
+                        // so gravity timing resumes exactly where it left off
+                        clock_t pausedDuration = clock() - pauseStart;
+                        lastFall += pausedDuration;
                     }
-                    case ' ':
-                        while (fits(cur, cur.rot, 0, 1)) { cur.y++; score += 2; }
-                        break;
-                    case 'q':
-                        gameOver = 1;
-                        break;
+                } else if (!paused) {
+                    switch (ch) {
+                        case 'a': case 75:
+                            if (fits(cur, cur.rot, -1, 0)) cur.x--;
+                            break;
+                        case 'd': case 77:
+                            if (fits(cur, cur.rot, 1, 0)) cur.x++;
+                            break;
+                        case 's': case 80:
+                            if (fits(cur, cur.rot, 0, 1)) { cur.y++; score += 1; }
+                            break;
+                        case 'w': case 72: {
+                            int newRot = (cur.rot + 1) % 4;
+                            if (fits(cur, newRot, 0, 0)) cur.rot = newRot;
+                            break;
+                        }
+                        case ' ':
+                            while (fits(cur, cur.rot, 0, 1)) { cur.y++; score += 2; }
+                            break;
+                        case 'q':
+                            gameOver = 1;
+                            break;
+                    }
                 }
             }
 
-            clock_t now = clock();
-            if ((now - lastFall) * 1000 / CLOCKS_PER_SEC >= fallDelayMs) {
-                if (fits(cur, cur.rot, 0, 1)) {
-                    cur.y++;
-                } else {
-                    lockPiece(cur);
-                    clearLines();
-                    spawnPiece(&cur);
-                    if (!fits(cur, cur.rot, 0, 0)) gameOver = 1;
+            if (!paused) {
+                clock_t now = clock();
+                if ((now - lastFall) * 1000 / CLOCKS_PER_SEC >= fallDelayMs) {
+                    if (fits(cur, cur.rot, 0, 1)) {
+                        cur.y++;
+                    } else {
+                        lockPiece(cur);
+                        clearLines();
+                        spawnPiece(&cur);
+                        if (!fits(cur, cur.rot, 0, 0)) gameOver = 1;
+                    }
+                    lastFall = now;
                 }
-                lastFall = now;
             }
 
             draw(hOut);
@@ -280,8 +306,12 @@ int main(void) {
         }
 
         draw(hOut);
-        printf("\nFinal score: %d\n", score);
-        printf("Play again? (Y/N): ");
+        int w = getConsoleWidth(hOut);
+        printf("\n");
+        char scoreLine[64];
+        snprintf(scoreLine, sizeof(scoreLine), "Final score: %d\n", score);
+        printCentered(w, scoreLine);
+        printCentered(w, "Play again? (Y/N): ");
 
         int ch;
         do {
@@ -293,6 +323,8 @@ int main(void) {
         playAgain = (ch == 'y');
     }
 
-    printf("\nThanks for playing!\n");
+    int w = getConsoleWidth(hOut);
+    printf("\n");
+    printCentered(w, "Thanks for playing!\n");
     return 0;
 }
