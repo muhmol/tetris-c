@@ -138,13 +138,33 @@ void showStartScreen(HANDLE hOut) {
     printCentered(w, "A terminal Tetris clone\n");
     printCentered(w, versionLine);
     printf("\n");
-    printCentered(w, "Controls:\n");
-    printCentered(w, "A / D    Move left / right\n");
-    printCentered(w, "S        Soft drop\n");
-    printCentered(w, "W        Rotate\n");
-    printCentered(w, "Space    Hard drop\n");
-    printCentered(w, "P        Pause\n");
-    printCentered(w, "Q        Quit round\n");
+
+    // Build the controls block as fixed-width lines (key column padded to
+    // the same width) so the whole block can be centered as a single unit
+    // instead of each line centering independently and drifting out of line.
+    const char *keys[]    = { "A / D", "S", "W", "Space", "P", "Q" };
+    const char *actions[] = { "Move left / right", "Soft drop", "Rotate",
+                               "Hard drop", "Pause", "Quit round" };
+    int numControls = 6;
+
+    char lines[8][64];
+    int maxLen = 0;
+    for (int i = 0; i < numControls; i++) {
+        snprintf(lines[i], sizeof(lines[i]), "%-8s %s", keys[i], actions[i]);
+        int len = (int)strlen(lines[i]);
+        if (len > maxLen) maxLen = len;
+    }
+
+    int blockPad = (w - maxLen) / 2;
+    if (blockPad < 0) blockPad = 0;
+    char blockPadStr[128] = {0};
+    for (int i = 0; i < blockPad && i < 127; i++) blockPadStr[i] = ' ';
+
+    printf("%sControls:\n", blockPadStr);
+    for (int i = 0; i < numControls; i++) {
+        printf("%s%s\n", blockPadStr, lines[i]);
+    }
+
     printf("\n");
     printCentered(w, "Press any key to start...\n");
 
