@@ -8,9 +8,9 @@ A classic Tetris clone written in plain C, rendered entirely in the terminal. Bu
 ![License](https://img.shields.io/badge/license-MIT-green)
 [![GitHub Pages](https://img.shields.io/badge/site-live-brightgreen)](https://muhmol.github.io/tetris-c/)
 
-### 🎮 [Visit the game site](https://muhmol.github.io/tetris-c/)
+### 🎮 [Visit the game site](https://muhmol.github.io/tetris-c/) — download link and controls, all in one place
 
-**[Download the latest release ↓](https://github.com/muhmol/tetris-c/releases/latest)**
+**[Download the latest release ↓](https://github.com/muhmol/tetris-c/releases/latest)** · **[Play page](https://muhmol.github.io/tetris-c/)**
 
 ---
 
@@ -21,6 +21,9 @@ A classic Tetris clone written in plain C, rendered entirely in the terminal. Bu
 - Line clearing with classic scoring (single / double / triple / tetris), scaled by level.
 - Level progression: every 10 lines cleared increases the level and speeds up gravity.
 - Colored pieces in the terminal, matched to each tetromino type.
+- Title screen with ASCII art, aligned controls reference, and the current version number, shown once on launch.
+- Pause (`P`) — freezes the board without disrupting gravity timing, so resuming doesn't cause a sudden fast drop.
+- Board, start screen, and end-game prompts are all centered in the console window, and re-center automatically if the window is resized.
 - Play-again prompt after game over — no need to relaunch the exe between rounds.
 - Single statically-linked executable. No installer, no MSYS2/MinGW runtime needed on the machine you run it on.
 
@@ -33,7 +36,10 @@ A classic Tetris clone written in plain C, rendered entirely in the terminal. Bu
 | `S`     | Soft drop    |
 | `W`     | Rotate       |
 | `Space` | Hard drop    |
+| `P`     | Pause / resume |
 | `Q`     | Quit round   |
+
+Pausing freezes the board and shows a centered `*** PAUSED ***` message; press `P` again to resume exactly where you left off — gravity timing is preserved across the pause so you won't get a sudden fast drop when you unpause.
 
 When a round ends (either by topping out or pressing `Q`), you'll be asked `Play again? (Y/N)` — press `Y` to start a fresh board or `N` to exit.
 
@@ -101,6 +107,7 @@ The whole game intentionally lives in a single `main.c` — there's no game engi
 - **Pieces**: each tetromino is stored once, in its spawn orientation, as a `4×4` grid of 0s and 1s. Rotations aren't pre-stored — `getCell()` rotates the requested cell mathematically on each lookup, so all 4 rotations of all 7 pieces come from just 7 arrays total.
 - **Gravity & input**: the main loop polls the keyboard every frame (non-blocking, via `_kbhit()`/`_getch()`) and separately checks elapsed time to decide when the current piece should fall one row, so movement feels responsive independent of fall speed.
 - **Locking & clearing**: when a piece can no longer fall, its cells are written permanently into the board array, then every row is checked for completeness; full rows are removed and everything above shifts down.
+- **Version display**: the version shown on the start screen isn't hardcoded in `main.c` — it's defined once as `APP_VERSION` in `CMakeLists.txt` and passed into the code at compile time via a preprocessor definition, so bumping the version for a new release means changing exactly one line.
 
 ## Roadmap / ideas for contributing
 
@@ -109,7 +116,6 @@ These aren't implemented yet — pull requests welcome:
 - [ ] Next-piece preview panel
 - [ ] Hold piece
 - [ ] Proper SRS wall-kick rotation (current rotation is naive — it fails near walls/other pieces where a real Tetris would nudge the piece to fit)
-- [ ] Pause key
 - [ ] Persistent high score saved to a file
 - [ ] Cross-platform input handling (replace `conio.h`/`windows.h` with a portable alternative, e.g. `ncurses` on Linux/macOS)
 
