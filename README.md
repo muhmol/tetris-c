@@ -6,13 +6,26 @@ A classic Tetris clone written in plain C, rendered entirely in the terminal. Bu
 ![Language](https://img.shields.io/badge/language-C17-00599C)
 ![Build](https://img.shields.io/badge/build-CMake-064F8C)
 ![License](https://img.shields.io/badge/license-MIT-green)
-[![GitHub Pages](https://img.shields.io/badge/site-live-brightgreen)](https://muhmol.github.io/tetris-c/)
 
-### 🎮 [Visit the game site](https://muhmol.github.io/tetris-c/) — download link and controls, all in one place
-
-**[Download the latest release ↓](https://github.com/muhmol/tetris-c/releases/latest)** · **[Play page](https://muhmol.github.io/tetris-c/)**
+**[Download the latest release ↓](https://github.com/muhmol/tetris-c/releases/latest)**
 
 ---
+
+## Screenshots
+
+<!--
+  Add your screenshots here. Suggested steps:
+  1. Take a screenshot of the start screen and one of active gameplay (Win+Shift+S on Windows).
+  2. Save them into a folder called `screenshots/` at the repo root, e.g.
+     screenshots/start-screen.png
+     screenshots/gameplay.png
+  3. The table below already references those paths — once the files exist, they'll render automatically.
+  4. Delete this comment block once your screenshots are in place.
+-->
+
+| Start screen | Gameplay |
+|---|---|
+| ![Start screen](screenshots/start-screen.png) | ![Gameplay](screenshots/gameplay.png) |
 
 ## Features
 
@@ -23,7 +36,8 @@ A classic Tetris clone written in plain C, rendered entirely in the terminal. Bu
 - Colored pieces in the terminal, matched to each tetromino type.
 - Title screen with ASCII art, aligned controls reference, and the current version number, shown once on launch.
 - Pause (`P`) — freezes the board without disrupting gravity timing, so resuming doesn't cause a sudden fast drop.
-- Board, start screen, and end-game prompts are all centered in the console window, and re-center automatically if the window is resized.
+- Quit confirmation — pressing `Q` mid-game asks before ending the round and returns you to the start menu rather than closing the program outright; the start menu itself also confirms before actually exiting.
+- Board, start screen, and all prompts are centered in the console window, and re-center automatically if the window is resized.
 - Play-again prompt after game over — no need to relaunch the exe between rounds.
 - Single statically-linked executable. No installer, no MSYS2/MinGW runtime needed on the machine you run it on.
 
@@ -37,11 +51,13 @@ A classic Tetris clone written in plain C, rendered entirely in the terminal. Bu
 | `W`     | Rotate       |
 | `Space` | Hard drop    |
 | `P`     | Pause / resume |
-| `Q`     | Quit round   |
+| `Q`     | Quit (asks for confirmation) |
 
-Pausing freezes the board and shows a centered `*** PAUSED ***` message; press `P` again to resume exactly where you left off — gravity timing is preserved across the pause so you won't get a sudden fast drop when you unpause.
+Pausing freezes the board and replaces the controls line with `PAUSED - press P to resume`; press `P` again to resume exactly where you left off — gravity timing is preserved across the pause so you won't get a sudden fast drop when you unpause.
 
-When a round ends (either by topping out or pressing `Q`), you'll be asked `Play again? (Y/N)` — press `Y` to start a fresh board or `N` to exit.
+Pressing `Q` during a round asks `Quit to menu? (Y/N)`. Answering `N` resumes play immediately (even if the game was already paused); answering `Y` ends the round and returns you to the start menu, from which you can start a new game or quit the program entirely (also with a confirmation).
+
+When a round ends by topping out, you'll be asked `Play again? (Y/N)` — press `Y` to start a fresh board or `N` to exit.
 
 ## Scoring
 
@@ -95,7 +111,6 @@ tetris-c/
 │   └── main.c          # entire game: board, pieces, input, rendering, scoring
 ├── CMakeLists.txt       # build configuration, statically links the runtime
 ├── .gitignore
-├── index.html           # GitHub Pages landing page
 └── README.md
 ```
 
@@ -108,6 +123,7 @@ The whole game intentionally lives in a single `main.c` — there's no game engi
 - **Gravity & input**: the main loop polls the keyboard every frame (non-blocking, via `_kbhit()`/`_getch()`) and separately checks elapsed time to decide when the current piece should fall one row, so movement feels responsive independent of fall speed.
 - **Locking & clearing**: when a piece can no longer fall, its cells are written permanently into the board array, then every row is checked for completeness; full rows are removed and everything above shifts down.
 - **Version display**: the version shown on the start screen isn't hardcoded in `main.c` — it's defined once as `APP_VERSION` in `CMakeLists.txt` and passed into the code at compile time via a preprocessor definition, so bumping the version for a new release means changing exactly one line.
+- **Confirmation prompts**: `Q` and the start menu's quit option both route through a small `confirmPrompt()` helper that temporarily overrides the board's status line to ask `Y/N`, rather than printing a separate line — this keeps every prompt visually anchored to the board with no leftover text once it's dismissed.
 
 ## Roadmap / ideas for contributing
 
