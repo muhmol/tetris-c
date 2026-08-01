@@ -28,6 +28,8 @@ Piece cur;
 int score = 0, level = 1, linesCleared = 0;
 int gameOver = 0;
 int paused = 0;
+int quitToMenu = 0;
+const char *statusOverride = NULL; // when set, draw() shows this instead of the pause/controls line
 
 int getCell(int type, int rot, int row, int col) {
     int r = row, c = col;
@@ -119,29 +121,82 @@ void printCentered(int consoleWidth, const char *text) {
     printf("%s", text);
 }
 
-void showStartScreen(HANDLE hOut) {
+// Discards any keystrokes still sitting in the input buffer. Called right
+// before a blocking _getch() prompt so a leftover keypress (e.g. the second
+// byte of an arrow key, or an extra key pressed while a menu was already
+// closing) doesn't get silently consumed as the answer to the next prompt,
+// which is what makes the game feel "stuck" or unresponsive after a menu.
+void flushInput(void) {
+    while (_kbhit()) {
+        _getch();
+    }
+}
+
+// Centers text within a specific horizontal field [fieldStart, fieldStart+fieldWidth),
+// then pads the rest of the line with spaces out to totalWidth. The trailing
+// padding is what matters here: without it, switching from a longer line to a
+// shorter one (e.g. unpausing) leaves leftover characters from the previous,
+// longer render still sitting on screen since the cursor just overwrites from
+// the same starting column without erasing anything past the new text's end.
+void printCenteredInField(int fieldStart, int fieldWidth, int totalWidth, const char *text) {
+    int rawLen = (int)strlen(text);
+    int hasNewline = (rawLen > 0 && text[rawLen - 1] == '\n');
+    int visibleLen = hasNewline ? rawLen - 1 : rawLen;
+
+    int innerPad = (fieldWidth - visibleLen) / 2;
+    if (innerPad < 0) innerPad = 0;
+    int totalPad = fieldStart + innerPad;
+
+    for (int i = 0; i < totalPad; i++) putchar(' ');
+    for (int i = 0; i < visibleLen; i++) putchar(text[i]);
+
+    int endCol = totalPad + visibleLen;
+    for (int i = endCol; i < totalWidth; i++) putchar(' ');
+
+    if (hasNewline) putchar('\n');
+}
+
+/* --- Fixed-width block font for the title art ---
+   Every letter is exactly 6 characters wide across 5 rows, so every
+   row of the final title has the *same* total length. That means
+   printCentered() (which pads based on line length) pads every row
+   identically, and the letters stay aligned as one solid block instead
+   of drifting based on each line's individual width. */
+const char *letterT[5] = { "##### ", "  #   ", "  #   ", "  #   ", "  #   " };
+const char *letterE[5] = { "##### ", "#     ", "####  ", "#     ", "##### " };
+const char *letterR[5] = { "####  ", "#   # ", "####  ", "# #   ", "#  #  " };
+const char *letterI[5] = { "###   ", " #    ", " #    ", " #    ", "###   " };
+const char *letterS[5] = { " #####", "#     ", " #### ", "     #", "##### " };
+
+void printTitleArt(HANDLE hOut, int w) {
+    const char **letters[6] = { letterT, letterE, letterT, letterR, letterI, letterS };
+
+    setColor(hOut, 0); // cyan
+    for (int row = 0; row < 5; row++) {
+        char line[64] = {0};
+        for (int l = 0; l < 6; l++) {
+            strcat(line, letters[l][row]);
+        }
+        printCentered(w, line);
+        printf("\n");
+    }
+    SetConsoleTextAttribute(hOut, 7);
+}
+
+int showStartScreen(HANDLE hOut) {
     system("cls");
     int w = getConsoleWidth(hOut);
 
     printf("\n\n");
-    setColor(hOut, 0);
-    printCentered(w, "#####  ##### ##### ##### ###  #####\n");
-    printCentered(w, "  #    #     #       #   #  #\n");
-    printCentered(w, "  #    ###   ###     #   #   ###\n");
-    printCentered(w, "  #    #     #       #   #      #\n");
-    printCentered(w, "  #    ##### #####   #   ### #####\n");
-    SetConsoleTextAttribute(hOut, 7);
+    printTitleArt(hOut, w);
 
-    printf("\n\n");
+    printf("\n");
     char versionLine[32];
     snprintf(versionLine, sizeof(versionLine), "v%s\n", APP_VERSION);
     printCentered(w, "A terminal Tetris clone\n");
     printCentered(w, versionLine);
     printf("\n");
 
-    // Build the controls block as fixed-width lines (key column padded to
-    // the same width) so the whole block can be centered as a single unit
-    // instead of each line centering independently and drifting out of line.
     const char *keys[]    = { "A / D", "S", "W", "Space", "P", "Q" };
     const char *actions[] = { "Move left / right", "Soft drop", "Rotate",
                                "Hard drop", "Pause", "Quit round" };
@@ -166,9 +221,37 @@ void showStartScreen(HANDLE hOut) {
     }
 
     printf("\n");
-    printCentered(w, "Press any key to start...\n");
+    printCentered(w, "Press any key to start, or Q to quit...\n");
 
-    _getch();
+    flushInput();
+    int ch = _getch();
+    return tolower(ch) == 'q'; // returns 1 if the player chose to quit
+}
+
+// Repeatedly shows the start screen. If the player presses Q, asks them to
+// confirm before actually quitting; pressing N returns them to the start
+// screen instead of accidentally exiting the program.
+// Returns 1 if the player confirmed quitting, 0 if they chose to start playing.
+int menuLoop(HANDLE hOut) {
+    while (1) {
+        int wantsQuit = showStartScreen(hOut);
+        if (!wantsQuit) return 0;
+
+        int w = getConsoleWidth(hOut);
+        printf("\n");
+        printCentered(w, "Quit the game? (Y/N): ");
+
+        flushInput();
+        int ch;
+        do {
+            ch = _getch();
+            ch = tolower(ch);
+        } while (ch != 'y' && ch != 'n');
+
+        printf("%c\n", ch);
+        if (ch == 'y') return 1;
+        // otherwise loop back and show the start screen again
+    }
 }
 
 void resetGame(void) {
@@ -181,6 +264,7 @@ void resetGame(void) {
     linesCleared = 0;
     gameOver = 0;
     paused = 0;
+    quitToMenu = 0;
 
     spawnPiece(&cur);
 }
@@ -209,7 +293,10 @@ void draw(HANDLE hOut) {
                     temp[by][bx] = cur.type + 1;
             }
 
-    printf("%sScore: %d   Level: %d   Lines: %d\n\n", padStr, score, level, linesCleared);
+    char scoreLine[64];
+    snprintf(scoreLine, sizeof(scoreLine), "Score: %d   Level: %d   Lines: %d\n", score, level, linesCleared);
+    printCenteredInField(0, w, w, scoreLine);
+    printf("\n");
 
     printf("%s+", padStr);
     for (int c = 0; c < BOARD_W; c++) printf("--");
@@ -233,16 +320,36 @@ void draw(HANDLE hOut) {
     printf("+\n");
     printf("%s\n", padStr);
 
-    if (paused) {
-        printCentered(w, "*** PAUSED — press P to resume ***\n");
+    if (statusOverride) {
+        printCenteredInField(pad, boardTextWidth, w, statusOverride);
+    } else if (paused) {
+        printCenteredInField(pad, boardTextWidth, w, "PAUSED - press P to resume\n");
     } else {
-        printCentered(w, "Controls: A/D move, S soft drop, W rotate, SPACE hard drop, P pause, Q quit\n");
+        printCenteredInField(pad, boardTextWidth, w, "P pause, Q quit\n");
     }
 
     if (gameOver) {
         printf("\n");
-        printCentered(w, "*** GAME OVER ***\n");
+        printCenteredInField(pad, boardTextWidth, w, "GAME OVER\n");
     }
+}
+
+// Shows a Y/N prompt in place of the normal pause/controls line, so it
+// replaces that text instead of appearing as an extra line below it.
+// Returns 1 if the player confirms, 0 if they cancel.
+int confirmPrompt(HANDLE hOut, const char *message) {
+    statusOverride = message;
+    draw(hOut);
+    statusOverride = NULL;
+
+    flushInput();
+    int ch;
+    do {
+        ch = _getch();
+        ch = tolower(ch);
+    } while (ch != 'y' && ch != 'n');
+
+    return ch == 'y';
 }
 
 int main(void) {
@@ -250,7 +357,9 @@ int main(void) {
     hideCursor(hOut);
     srand((unsigned)time(NULL));
 
-    showStartScreen(hOut);
+    if (menuLoop(hOut)) {
+        return 0; // player confirmed quitting from the start menu
+    }
 
     int playAgain = 1;
 
@@ -270,15 +379,29 @@ int main(void) {
                 int ch = _getch();
                 if (ch == 0 || ch == 224) ch = _getch();
 
-                if (ch == 'p') {
+                if (ch == 'p' && !gameOver) {
                     paused = !paused;
                     if (paused) {
                         pauseStart = clock();
                     } else {
-                        // shift lastFall forward by however long we were paused,
-                        // so gravity timing resumes exactly where it left off
                         clock_t pausedDuration = clock() - pauseStart;
                         lastFall += pausedDuration;
+                    }
+                } else if (ch == 'q') {
+                    // Pause gravity while we ask.
+                    paused = 1;
+                    if (confirmPrompt(hOut, "Quit to menu? (Y/N): ")) {
+                        gameOver = 1;
+                        quitToMenu = 1;
+                    } else {
+                        // confirmPrompt no longer leaves stray leftover text
+                        // now that it overwrites the pause/controls line in
+                        // place, but clearing here is a cheap safety net.
+                        system("cls");
+                        // Declining always resumes play, even if the game
+                        // was already paused before Q was pressed.
+                        paused = 0;
+                        lastFall = clock(); // treat the confirmation dialog itself as pause time
                     }
                 } else if (!paused) {
                     switch (ch) {
@@ -298,9 +421,6 @@ int main(void) {
                         }
                         case ' ':
                             while (fits(cur, cur.rot, 0, 1)) { cur.y++; score += 2; }
-                            break;
-                        case 'q':
-                            gameOver = 1;
                             break;
                     }
                 }
@@ -325,14 +445,25 @@ int main(void) {
             Sleep(16);
         }
 
+        if (quitToMenu) {
+            if (menuLoop(hOut)) {
+                break; // player confirmed quitting from the menu, exit the outer loop entirely
+            }
+            continue; // otherwise skip the score/play-again prompt, go straight into a new round
+        }
+
         draw(hOut);
-        int w = getConsoleWidth(hOut);
+        int boardTextWidth2 = (BOARD_W * 2) + 2;
+        int pad2 = (getConsoleWidth(hOut) - boardTextWidth2) / 2;
+        if (pad2 < 0) pad2 = 0;
         printf("\n");
         char scoreLine[64];
         snprintf(scoreLine, sizeof(scoreLine), "Final score: %d\n", score);
-        printCentered(w, scoreLine);
-        printCentered(w, "Play again? (Y/N): ");
+        int consoleW = getConsoleWidth(hOut);
+        printCenteredInField(0, consoleW, consoleW, scoreLine);
+        printCenteredInField(pad2, boardTextWidth2, consoleW, "Play again? (Y/N): ");
 
+        flushInput();
         int ch;
         do {
             ch = _getch();
