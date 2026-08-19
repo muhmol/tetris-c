@@ -108,22 +108,26 @@ cmake --build build
 ```
 tetris-c/
 ├── src/
-│   └── main.c          # entire game: board, pieces, input, rendering, scoring
-├── CMakeLists.txt       # build configuration, statically links the runtime
+│   ├── main.c       # game loop, orchestrates the other modules
+│   ├── piece.h/.c    # tetromino shapes and rotation
+│   ├── board.h/.c    # board grid, collision, locking, line clearing
+│   ├── game.h/.c     # game state (score, level, pause) and reset logic
+│   └── render.h/.c   # everything that draws to the console
+├── CMakeLists.txt    # build configuration, statically links the runtime
 ├── .gitignore
 └── README.md
 ```
 
-The whole game intentionally lives in a single `main.c` — there's no game engine or external dependency, just the C standard library plus the Windows console API for input and color.
+The project is split into small, focused modules rather than one monolithic file: `piece` knows nothing about the board, `board` knows nothing about scoring, and `render` is the only module that talks to the console. `main.c` just wires these pieces together in the game loop.
 
 ## How it works, briefly
 
 - **Board**: a `10 × 22` grid, where the top 2 rows are hidden and only used as spawn/rotation headroom for new pieces.
 - **Pieces**: each tetromino is stored once, in its spawn orientation, as a `4×4` grid of 0s and 1s. Rotations aren't pre-stored — `getCell()` rotates the requested cell mathematically on each lookup, so all 4 rotations of all 7 pieces come from just 7 arrays total.
 - **Gravity & input**: the main loop polls the keyboard every frame (non-blocking, via `_kbhit()`/`_getch()`) and separately checks elapsed time to decide when the current piece should fall one row, so movement feels responsive independent of fall speed.
-- **Locking & clearing**: when a piece can no longer fall, its cells are written permanently into the board array, then every row is checked for completeness; full rows are removed and everything above shifts down.
-- **Version display**: the version shown on the start screen isn't hardcoded in `main.c` — it's defined once as `APP_VERSION` in `CMakeLists.txt` and passed into the code at compile time via a preprocessor definition, so bumping the version for a new release means changing exactly one line.
-- **Confirmation prompts**: `Q` and the start menu's quit option both route through a small `confirmPrompt()` helper that temporarily overrides the board's status line to ask `Y/N`, rather than printing a separate line — this keeps every prompt visually anchored to the board with no leftover text once it's dismissed.
+- **Locking & clearing**: when a piece can no longer fall, `board.c` writes its cells permanently into the board and reports whether it caused a top-out; `main.c` decides what that means for game state, since the board module has no concept of "game over."
+- **Version display**: the version shown on the start screen isn't hardcoded — it's defined once as `APP_VERSION` in `CMakeLists.txt` and passed into the code at compile time via a preprocessor definition, so bumping the version for a new release means changing exactly one line.
+- **Confirmation prompts**: `Q` and the start menu's quit option both route through a small `confirmPrompt()` helper in `render.c` that temporarily overrides the board's status line to ask `Y/N`, rather than printing a separate line — this keeps every prompt visually anchored to the board with no leftover text once it's dismissed.
 
 ## Roadmap / ideas for contributing
 
