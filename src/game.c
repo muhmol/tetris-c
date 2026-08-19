@@ -1,5 +1,6 @@
 #include "game.h"
 #include "board.h"
+#include <stddef.h> // for NULL
 
 Piece cur;
 int score = 0, level = 1, linesCleared = 0;
