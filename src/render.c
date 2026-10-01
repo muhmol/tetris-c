@@ -8,6 +8,10 @@
 #include <ctype.h>
 #include <conio.h>
 
+#ifndef APP_VERSION
+#define APP_VERSION "dev"
+#endif
+
 void hideCursor(HANDLE h) {
     CONSOLE_CURSOR_INFO info;
     info.dwSize = 100;

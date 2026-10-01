@@ -1,12 +1,24 @@
-# Build output
+# Build directories
 /build/
+/build*/
+/out/
 
 # Compiled objects and binaries
 *.o
 *.obj
 *.exe
 *.out
+*.dll
+*.lib
 
-# IDE-specific
-.vscode/*
-!.vscode/settings.json
+# IDE and editor files
+.vscode/
+.idea/
+.vs/
+*.code-workspace
+
+# OS and temp files
+.DS_Store
+Thumbs.db
+*.tmp
+*.log
