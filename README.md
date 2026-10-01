@@ -67,8 +67,22 @@ tetris-c/
 │   ├── piece.h
 │   ├── render.c
 │   └── render.h
+├── tests/
+│   └── test_core.c
 └── screenshots/
 ```
+
+## Testing
+
+The core gameplay rules are covered by automated tests for piece rotations, collision boundaries, locking and top-out, adjacent line clears, scoring, level progression, and game reset. Run the full build and test suite with:
+
+```bash
+cmake --preset default
+cmake --build --preset default
+ctest --test-dir build --output-on-failure
+```
+
+The test target uses only the portable game-logic modules, so it does not require launching the Windows console game.
 
 ## Controls
 

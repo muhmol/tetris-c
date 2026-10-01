@@ -16,6 +16,7 @@ Use the project presets for a consistent local setup:
 ```bash
 cmake --preset default
 cmake --build --preset default
+ctest --test-dir build --output-on-failure
 ```
 
 ## Coding style
@@ -29,7 +30,7 @@ cmake --build --preset default
 
 - Keep changes narrowly scoped and easy to review.
 - Include a concise summary of what changed and why.
-- Validate the project with a fresh build before submission.
+- Validate the project with a fresh build and passing test suite before submission.
 
 ## Reporting issues
 
